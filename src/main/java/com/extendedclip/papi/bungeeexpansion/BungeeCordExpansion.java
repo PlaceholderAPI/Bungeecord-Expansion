@@ -53,7 +53,7 @@ public class BungeeCordExpansion extends PlaceholderExpansion implements PluginM
 	
 	private BukkitTask task;
 	
-	private static boolean registered = false;
+	private boolean registered = false;
 	
 	private final String CHANNEL = "BungeeCord";
 	
@@ -168,7 +168,7 @@ public class BungeeCordExpansion extends PlaceholderExpansion implements PluginM
 			}
 		 
 		} catch (IOException e) {
-			//IGNORE FUCK IT
+			//IGNORE FUCK IT!! Testing
 		}
 	}
 
@@ -206,11 +206,8 @@ public class BungeeCordExpansion extends PlaceholderExpansion implements PluginM
 			public void run() {
 				
 				if (servers.isEmpty()) {
-					
 					getServers();
-					
 					getPlayers("ALL");
-
 					return;
 				}
 				
@@ -219,13 +216,10 @@ public class BungeeCordExpansion extends PlaceholderExpansion implements PluginM
 				}
 				
 				getPlayers("ALL");
-				
 				count++;
 				
 				if (count == 10) {
-					
 					count = 0;
-					
 					Bukkit.getScheduler().runTaskLater(getPlaceholderAPI(), new Runnable() {
 
 						@Override

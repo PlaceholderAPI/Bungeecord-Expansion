@@ -193,7 +193,7 @@ public class BungeeCordExpansion extends PlaceholderExpansion implements PluginM
 			}
 		}
 	
-		return null;
+		return "0";
 	
 	}
 

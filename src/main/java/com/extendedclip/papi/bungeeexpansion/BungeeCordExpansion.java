@@ -24,7 +24,6 @@ import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
@@ -45,7 +44,7 @@ import com.google.common.io.ByteStreams;
 
 public class BungeeCordExpansion extends PlaceholderExpansion implements PluginMessageListener, Taskable, Cacheable, Configurable {
 
-	private final Map<String, Integer> servers = new ConcurrentHashMap<String, Integer>();
+	private final Map<String, Integer> servers = new ConcurrentHashMap<>();
 	
 	private int total = 0;
 	
@@ -56,8 +55,6 @@ public class BungeeCordExpansion extends PlaceholderExpansion implements PluginM
 	private boolean registered = false;
 	
 	private final String CHANNEL = "BungeeCord";
-	
-	private int fetchInterval = 60;
 	
 	public BungeeCordExpansion() {
 		if (!registered) {
@@ -94,7 +91,7 @@ public class BungeeCordExpansion extends PlaceholderExpansion implements PluginM
 	
 	@Override
 	public Map<String, Object> getDefaults() {
-		final Map<String, Object> defaults = new HashMap<String, Object>();
+		final Map<String, Object> defaults = new HashMap<>();
 		defaults.put("check_interval", 30);
 		return defaults;
 	}
@@ -156,14 +153,12 @@ public class BungeeCordExpansion extends PlaceholderExpansion implements PluginM
 				
 				String[] serverList = in.readUTF().split(", ");
 				
-				if (serverList == null || serverList.length == 0) {
+				if (serverList.length == 0) {
 					return;
 				}
 				
 				for (String server : serverList) {					
-					if (!servers.containsKey(server)) {
-						servers.put(server, 0);
-					}
+					servers.putIfAbsent(server, 0);
 				}
 			}
 		 
@@ -180,14 +175,11 @@ public class BungeeCordExpansion extends PlaceholderExpansion implements PluginM
 			return String.valueOf(total);
 		}
 		
-		if (servers == null || servers.isEmpty()) {
+		if (servers.isEmpty()) {
 			return "0";
 		}
 		
-		Iterator<Entry<String, Integer>> i = servers.entrySet().iterator();
-		
-		while (i.hasNext()) {
-			Entry<String, Integer> entry = i.next();
+		for (Entry<String, Integer> entry : servers.entrySet()) {
 			if (entry.getKey().equalsIgnoreCase(identifier)) {
 				return String.valueOf(entry.getValue());
 			}
@@ -231,7 +223,7 @@ public class BungeeCordExpansion extends PlaceholderExpansion implements PluginM
 				}
 				
 			}
-		}.runTaskTimer(getPlaceholderAPI(), 100L, 20L*fetchInterval);
+		}.runTaskTimer(getPlaceholderAPI(), 100L, 20L * getInt("check_interval", 30));
 	}
 
 	@Override

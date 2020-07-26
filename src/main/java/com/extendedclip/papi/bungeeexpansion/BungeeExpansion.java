@@ -9,6 +9,7 @@ import me.clip.placeholderapi.expansion.Configurable;
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 import me.clip.placeholderapi.expansion.Taskable;
 import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.messaging.PluginMessageListener;
 import org.bukkit.scheduler.BukkitTask;
@@ -55,7 +56,7 @@ public final class BungeeExpansion extends PlaceholderExpansion implements Plugi
 
 
     @Override
-    public String onPlaceholderRequest(final Player player, final String identifier) {
+    public String onRequest(final OfflinePlayer player, String identifier) {
         final int value;
 
         switch (identifier.toLowerCase()) {

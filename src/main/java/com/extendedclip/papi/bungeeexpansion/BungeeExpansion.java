@@ -13,6 +13,8 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.messaging.PluginMessageListener;
 import org.bukkit.scheduler.BukkitTask;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -22,134 +24,145 @@ import java.util.function.Consumer;
 
 public final class BungeeExpansion extends PlaceholderExpansion implements PluginMessageListener, Taskable, Configurable {
 
-    private static final String MESSAGE_CHANNEL = "BungeeCord";
-    private static final String SERVERS_CHANNEL = "GetServers";
-    private static final String PLAYERS_CHANNEL = "PlayerCount";
-    private static final String CONFIG_INTERVAL = "check_interval";
+	private static final String MESSAGE_CHANNEL = "BungeeCord";
 
-    private static final Splitter SPLITTER = Splitter.on(",").trimResults();
+	// BungeeCord Subchannels
+	private static final String SERVER_SUBCHANNEL = "GetServer";
+	private static final String SERVERS_SUBCHANNEL = "GetServers";
+	private static final String PLAYERS_SUBCHANNEL = "PlayerCount";
 
+	private static final String CONFIG_INTERVAL = "check_interval";
+	private static final Splitter SPLITTER = Splitter.on(",").trimResults();
 
-    private final Map<String, Integer>        counts = new HashMap<>();
-    private final AtomicReference<BukkitTask> cached = new AtomicReference<>();
+	private final Map<String, Integer> counts = new HashMap<>();
+	private final AtomicReference<BukkitTask> cached = new AtomicReference<>();
 
+	private String serverName = "";
 
-    @Override
-    public String getIdentifier() {
-        return "bungee";
-    }
+	@Override
+	public @NotNull String getIdentifier() {
+		return "bungee";
+	}
 
-    @Override
-    public String getAuthor() {
-        return "clip";
-    }
+	@Override
+	public @NotNull String getAuthor() {
+		return "clip";
+	}
 
-    @Override
-    public String getVersion() {
-        return "2.0";
-    }
+	@Override
+	public @NotNull String getVersion() {
+		return "3.0";
+	}
 
-    @Override
-    public Map<String, Object> getDefaults() {
-        return Collections.singletonMap(CONFIG_INTERVAL, 30);
-    }
+	@Override
+	public Map<String, Object> getDefaults() {
+		return Collections.singletonMap(CONFIG_INTERVAL, 30);
+	}
 
+	@Override
+	public String onRequest(final OfflinePlayer player, @NotNull String identifier) {
+		switch (identifier) {
+			case "count":
+				return Integer.toString(counts.getOrDefault(serverName, 0));
 
-    @Override
-    public String onRequest(final OfflinePlayer player, String identifier) {
-        final int value;
+			case "server_name":
+				return serverName.isEmpty() ? "" : serverName;
+		}
 
-        switch (identifier.toLowerCase()) {
-            case "all":
-            case "total":
-                value = counts.values().stream().mapToInt(Integer::intValue).sum();
-                break;
-            default:
-                value = counts.getOrDefault(identifier.toLowerCase(), 0);
-                break;
-        }
+		if (identifier.startsWith("count_")) {
+			final int value;
+			switch (identifier) {
+				case "count_all":
+				case "count_total":
+					value = counts.values().stream().mapToInt(Integer::intValue).sum();
+					break;
 
-        return String.valueOf(value);
-    }
+				default:
+					String serverName = identifier.substring(identifier.indexOf('_') + 1);
+					value = counts.getOrDefault(serverName, 0);
+					break;
+			}
+			return Integer.toString(value);
+		}
+		return null;
+	}
 
-    @Override
-    public void start() {
-        final BukkitTask task = Bukkit.getScheduler().runTaskTimer(getPlaceholderAPI(), () -> {
+	@Override
+	public void start() {
+		final BukkitTask task = Bukkit.getScheduler().runTaskTimer(getPlaceholderAPI(), () -> {
+			if (counts.isEmpty()) {
+				sendServersSubchannelMessage();
+			} else {
+				counts.keySet().forEach(this::sendPlayersSubchannelMessage);
+			}
+		}, 20L * 2L, 20L * getLong(CONFIG_INTERVAL, 30));
 
-            if (counts.isEmpty()) {
-                sendServersChannelMessage();
-            }
-            else {
-                counts.keySet().forEach(this::sendPlayersChannelMessage);
-            }
+		final BukkitTask prev = cached.getAndSet(task);
+		if (prev != null) {
+			prev.cancel();
+		} else {
+			Bukkit.getMessenger().registerOutgoingPluginChannel(getPlaceholderAPI(), MESSAGE_CHANNEL);
+			Bukkit.getMessenger().registerIncomingPluginChannel(getPlaceholderAPI(), MESSAGE_CHANNEL, this);
+		}
 
-        }, 20L * 2L, 20L * getLong(CONFIG_INTERVAL, 30));
+		sendServerSubchannelMessage();
+	}
 
+	@Override
+	public void stop() {
+		final BukkitTask prev = cached.getAndSet(null);
+		if (prev == null) return;
 
-        final BukkitTask prev = cached.getAndSet(task);
-        if (prev != null) {
-            prev.cancel();
-        } else {
-            Bukkit.getMessenger().registerOutgoingPluginChannel(getPlaceholderAPI(), MESSAGE_CHANNEL);
-            Bukkit.getMessenger().registerIncomingPluginChannel(getPlaceholderAPI(), MESSAGE_CHANNEL, this);
-        }
-    }
+		prev.cancel();
+		counts.clear();
 
-    @Override
-    public void stop() {
-        final BukkitTask prev = cached.getAndSet(null);
-        if (prev == null) {
-            return;
-        }
+		Bukkit.getMessenger().unregisterOutgoingPluginChannel(getPlaceholderAPI(), MESSAGE_CHANNEL);
+		Bukkit.getMessenger().unregisterIncomingPluginChannel(getPlaceholderAPI(), MESSAGE_CHANNEL, this);
+	}
 
-        prev.cancel();
-        counts.clear();
+	@Override
+	public void onPluginMessageReceived(final @NotNull String channel, final @NotNull Player player, final byte[] message) {
+		if (!MESSAGE_CHANNEL.equals(channel)) return;
 
-        Bukkit.getMessenger().unregisterOutgoingPluginChannel(getPlaceholderAPI(), MESSAGE_CHANNEL);
-        Bukkit.getMessenger().unregisterIncomingPluginChannel(getPlaceholderAPI(), MESSAGE_CHANNEL, this);
-    }
+		//noinspection UnstableApiUsage
+		final ByteArrayDataInput in = ByteStreams.newDataInput(message);
+		switch (in.readUTF()) {
+			case PLAYERS_SUBCHANNEL:
+				counts.put(in.readUTF(), in.readInt());
+				break;
 
+			case SERVER_SUBCHANNEL:
+				serverName = in.readUTF();
+				break;
 
-    @Override
-    public void onPluginMessageReceived(final String channel, final Player player, final byte[] message) {
-        if (!MESSAGE_CHANNEL.equals(channel)) {
-            return;
-        }
+			case SERVERS_SUBCHANNEL:
+				SPLITTER.split(in.readUTF()).forEach(serverName -> counts.putIfAbsent(serverName, 0));
+				break;
+		}
+	}
 
-        //noinspection UnstableApiUsage
-        final ByteArrayDataInput in = ByteStreams.newDataInput(message);
-        switch (in.readUTF()) {
-            case PLAYERS_CHANNEL:
-                counts.put(in.readUTF(), in.readInt());
-                break;
-            case SERVERS_CHANNEL:
-                SPLITTER.split(in.readUTF()).forEach(serverName -> counts.putIfAbsent(serverName, 0));
-                break;
-        }
-    }
+	private void sendServerSubchannelMessage() {
+		sendChanncelMessage(SERVER_SUBCHANNEL, null);
+	}
 
+	private void sendServersSubchannelMessage() {
+		sendChanncelMessage(SERVERS_SUBCHANNEL, null);
+	}
 
-    private void sendServersChannelMessage() {
-        sendMessage(SERVERS_CHANNEL, out -> { });
-    }
+	private void sendPlayersSubchannelMessage(@NotNull final String serverName) {
+		sendChanncelMessage(PLAYERS_SUBCHANNEL, out -> out.writeUTF(serverName));
+	}
 
-    private void sendPlayersChannelMessage(final String serverName) {
-        sendMessage(PLAYERS_CHANNEL, out -> out.writeUTF(serverName));
-    }
+	private void sendChanncelMessage(@NotNull final String channel, @Nullable final Consumer<ByteArrayDataOutput> consumer) {
+		final Player player = Iterables.getFirst(Bukkit.getOnlinePlayers(), null);
+		if (player == null) return;
 
-    private void sendMessage(final String channel, final Consumer<ByteArrayDataOutput> consumer) {
-        final Player player = Iterables.getFirst(Bukkit.getOnlinePlayers(), null);
-        if (player == null) {
-            return;
-        }
+		final ByteArrayDataOutput out = ByteStreams.newDataOutput();
+		out.writeUTF(channel);
 
-        //noinspection UnstableApiUsage
-        final ByteArrayDataOutput out = ByteStreams.newDataOutput();
-        out.writeUTF(channel);
+		if (consumer != null) consumer.accept(out);
 
-        consumer.accept(out);
-
-        player.sendPluginMessage(getPlaceholderAPI(), MESSAGE_CHANNEL, out.toByteArray());
-    }
+		player.sendPluginMessage(getPlaceholderAPI(), MESSAGE_CHANNEL, out.toByteArray());
+	}
 
 }

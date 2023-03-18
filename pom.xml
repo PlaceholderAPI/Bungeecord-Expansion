@@ -4,7 +4,7 @@
 
     <groupId>com.extendedclip.papi.bungeeexpansion</groupId>
     <artifactId>bungee-expansion</artifactId>
-    <version>2.1</version>
+    <version>2.2</version>
 
     <name>Expansion-Bungee</name>
     <description>PlaceholderAPI expansion for bungeecord placeholders</description>

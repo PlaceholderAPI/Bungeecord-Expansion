@@ -46,7 +46,7 @@ public final class BungeeExpansion extends PlaceholderExpansion implements Plugi
 
     @Override
     public String getVersion() {
-        return "2.1";
+        return "2.2";
     }
 
     @Override
@@ -120,10 +120,10 @@ public final class BungeeExpansion extends PlaceholderExpansion implements Plugi
         final ByteArrayDataInput in = ByteStreams.newDataInput(message);
         switch (in.readUTF()) {
             case PLAYERS_CHANNEL:
-                counts.put(in.readUTF(), in.readInt());
+                counts.put(in.readUTF().toLowerCase(), in.readInt());
                 break;
             case SERVERS_CHANNEL:
-                SPLITTER.split(in.readUTF()).forEach(serverName -> counts.putIfAbsent(serverName, 0));
+                SPLITTER.split(in.readUTF()).forEach(serverName -> counts.putIfAbsent(serverName.toLowerCase(), 0));
                 break;
         }
     }

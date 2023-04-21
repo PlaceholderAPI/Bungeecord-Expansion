@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.logging.Level;
 
 public final class BungeeExpansion extends PlaceholderExpansion implements PluginMessageListener, Taskable, Configurable {
 
@@ -46,7 +47,7 @@ public final class BungeeExpansion extends PlaceholderExpansion implements Plugi
 
     @Override
     public String getVersion() {
-        return "2.2";
+        return "2.3";
     }
 
     @Override
@@ -120,7 +121,15 @@ public final class BungeeExpansion extends PlaceholderExpansion implements Plugi
         final ByteArrayDataInput in = ByteStreams.newDataInput(message);
         switch (in.readUTF()) {
             case PLAYERS_CHANNEL:
-                counts.put(in.readUTF().toLowerCase(), in.readInt());
+                final String server = in.readUTF();
+
+                try {
+                    counts.put(server.toLowerCase(), in.readInt());
+                } catch (Exception e) {
+                    getPlaceholderAPI().getLogger().log(Level.SEVERE, String.format("[%s] Could not get the player count from server %s. Error: %s", getName(), server, e.getMessage()), e);
+                    counts.put(server.toLowerCase(), 0);
+                }
+
                 break;
             case SERVERS_CHANNEL:
                 SPLITTER.split(in.readUTF()).forEach(serverName -> counts.putIfAbsent(serverName.toLowerCase(), 0));

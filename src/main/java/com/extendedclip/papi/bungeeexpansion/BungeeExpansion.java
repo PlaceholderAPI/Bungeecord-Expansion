@@ -14,11 +14,15 @@ import org.bukkit.entity.Player;
 import org.bukkit.plugin.messaging.PluginMessageListener;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
+import java.lang.reflect.Field;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.logging.Level;
 
 public final class BungeeExpansion extends PlaceholderExpansion implements PluginMessageListener, Taskable, Configurable {
 
@@ -33,6 +37,16 @@ public final class BungeeExpansion extends PlaceholderExpansion implements Plugi
     private final Map<String, Integer>        counts = new HashMap<>();
     private final AtomicReference<BukkitTask> cached = new AtomicReference<>();
 
+    private static Field inputField;
+
+    static {
+        try {
+            inputField = Class.forName("com.google.common.io.ByteStreams$ByteArrayDataInputStream").getDeclaredField("input");
+            inputField.setAccessible(true);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 
     @Override
     public String getIdentifier() {
@@ -46,7 +60,7 @@ public final class BungeeExpansion extends PlaceholderExpansion implements Plugi
 
     @Override
     public String getVersion() {
-        return "2.2";
+        return "2.3";
     }
 
     @Override
@@ -118,13 +132,23 @@ public final class BungeeExpansion extends PlaceholderExpansion implements Plugi
 
         //noinspection UnstableApiUsage
         final ByteArrayDataInput in = ByteStreams.newDataInput(message);
-        switch (in.readUTF()) {
-            case PLAYERS_CHANNEL:
-                counts.put(in.readUTF().toLowerCase(), in.readInt());
-                break;
-            case SERVERS_CHANNEL:
-                SPLITTER.split(in.readUTF()).forEach(serverName -> counts.putIfAbsent(serverName.toLowerCase(), 0));
-                break;
+        try {
+            DataInputStream stream = (DataInputStream) inputField.get(in);
+            switch (in.readUTF()) {
+                    case PLAYERS_CHANNEL:
+                        if (stream.available() == 0) return; // how ?
+                        final String server = in.readUTF();
+                        if (stream.available() == 0) { // how ? x2
+                            getPlaceholderAPI().getLogger().log(Level.SEVERE, String.format("[%s] Could not get the player count from server %s.", getName(), server));
+                            counts.put(server.toLowerCase(), 0);
+                        } else counts.put(server.toLowerCase(), in.readInt());
+                    break;
+                case SERVERS_CHANNEL:
+                    SPLITTER.split(in.readUTF()).forEach(serverName -> counts.putIfAbsent(serverName.toLowerCase(), 0));
+                    break;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
